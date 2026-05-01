@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+qt/
+*.log
+google_credentials.json
+token.json
+scratch/
+test.exe
+test.obj
+*.png
+FinceptTerminal/

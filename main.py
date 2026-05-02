@@ -1,9 +1,9 @@
-"""
-main.py — Main entry point and async event loop manager.
+"""main.py — Main entry point and async event loop manager.
 
 Launches ALL THREE MCP clients (Windows, Playwright, Fincept),
-compiles the LangGraph agent, and starts the requested interface
-(CLI, Telegram, or Slack). Handles graceful shutdown on Ctrl+C.
+compiles the LangGraph agent, starts the WebSocket server for the
+desktop widget, and starts the requested interface (CLI, Telegram,
+or Slack). Handles graceful shutdown on Ctrl+C.
 """
 import argparse
 import asyncio
@@ -18,6 +18,8 @@ from tools.google_tools import GOOGLE_TOOLS
 from tools.fintech_tools import FINTECH_TOOLS
 from tools.fincept_tools import launch_fincept_terminal
 from tools.file_tools import FILE_TOOLS
+from tools.windows_enhanced_tools import WINDOWS_ENHANCED_TOOLS
+from tools.input_tools import INPUT_TOOLS
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,8 +27,8 @@ logger = get_logger(__name__)
 
 async def main(interface: str) -> None:
     """Main orchestration coroutine."""
-    logger.info("Starting AGENT ORION V2 - Windows Personal Assistant")
-    logger.info("Architecture: Multi-MCP + Checklist + Vision Validator")
+    logger.info("Starting AGENT ORION V3 — Windows Personal Assistant")
+    logger.info("Architecture: Multi-MCP + Calibrator + Physical Planner + Vision Validator")
 
     # 1. Start ALL MCP Clients concurrently & discover tools
     try:
@@ -41,11 +43,19 @@ async def main(interface: str) -> None:
         logger.error("Ensure windows-mcp is installed and accessible.")
         sys.exit(1)
 
-    # Combine all tools
-    all_tools = mcp_tools + GOOGLE_TOOLS + FINTECH_TOOLS + FILE_TOOLS + [launch_fincept_terminal]
+    # Combine all tools (including enhanced Windows tools)
+    all_tools = (
+        mcp_tools
+        + GOOGLE_TOOLS
+        + FINTECH_TOOLS
+        + FILE_TOOLS
+        + WINDOWS_ENHANCED_TOOLS
+        + INPUT_TOOLS
+        + [launch_fincept_terminal]
+    )
     logger.info("Total tools available to agent: %d", len(all_tools))
 
-    # 2. Build the LangGraph StateMachine (with validator + MCP client)
+    # 2. Build the LangGraph StateMachine (with calibrator + validator + MCP client)
     try:
         agent_graph = build_graph(tools=all_tools, mcp_client=multi_mcp_client)
     except Exception as exc:
@@ -53,9 +63,24 @@ async def main(interface: str) -> None:
         await multi_mcp_client.shutdown_all()
         sys.exit(1)
 
-    # 3. Launch the selected interface
+    # 3. Start the WebSocket server for the desktop widget
     tasks = []
 
+    if config.UI_ENABLED:
+        from ui.ws_server import start_ws_server, set_graph, set_mcp_client
+
+        set_graph(agent_graph)
+        set_mcp_client(multi_mcp_client)
+
+        tasks.append(
+            asyncio.create_task(start_ws_server(
+                host="localhost",
+                port=config.UI_PORT,
+            ))
+        )
+        logger.info("WebSocket server starting on ws://localhost:%d", config.UI_PORT)
+
+    # 4. Launch the selected interface
     try:
         if interface == "telegram":
             from interfaces.telegram_interface import start_telegram_bot
@@ -77,7 +102,7 @@ async def main(interface: str) -> None:
     except asyncio.CancelledError:
         logger.info("Main shutdown sequence initiated...")
     finally:
-        # 4. Graceful shutdown — cancel tasks and kill all MCP subprocesses
+        # 5. Graceful shutdown — cancel tasks and kill all MCP subprocesses
         for task in tasks:
             task.cancel()
         await multi_mcp_client.shutdown_all()
@@ -85,7 +110,7 @@ async def main(interface: str) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="AGENT ORION V2 Launcher")
+    parser = argparse.ArgumentParser(description="AGENT ORION V3 Launcher")
     parser.add_argument(
         "--interface",
         type=str,

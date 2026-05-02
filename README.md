@@ -12,7 +12,8 @@ Agent Orion is a highly robust AI agent with native Windows integration, physica
 
 ## 🚀 Features
 - **Multi-MCP Architecture**: Concurrently runs Windows, Playwright, and Fincept MCP servers.
-- **Physical Sensory-Motor Loop**: Full desktop automation via vision and coordinate-based clicks.
+- **Native Windows Automation**: Uses `tools/input_tools.py` for direct coordinate-based clicks and fast element typing without relying on brittle external libraries like `pyautogui`.
+- **High-Speed Execution**: Sub-8s executor latency using optimized token boundaries and a skip-vision pipeline for non-GUI tasks.
 - **Three-Way Intent Routing**: Efficiently routes queries into Chat, Simple Tasks, or Complex Planner-based executions.
 - **Unified Interfaces**: Communicate with Orion through CLI, Telegram, or Slack.
 
@@ -48,6 +49,19 @@ Agent Orion is a highly robust AI agent with native Windows integration, physica
    uv tool install windows-mcp
    ```
 
+## 📁 Directory Structure
+```
+AGENT_ORION/
+├── agents/         # LangGraph agents (executor, planner, supervisor, validator)
+├── docs/           # Project documentation and implementation plans
+├── interfaces/     # CLI, Slack, and Telegram bot interfaces
+├── memory/         # ChromaDB vector store and task SQLite DB
+├── orion-widget/   # Electron frontend widget for Orion
+├── tools/          # Native MCP input tools and client wrappers
+├── ui/             # WebSockets server for UI integration
+└── main.py         # Main application entry point
+```
+
 ## 🔐 Environment Setup
 Copy the example environment file and fill in your API keys:
 ```bash
@@ -60,21 +74,21 @@ Ensure the following are set up:
 
 ## ▶️ Run Commands
 
-Orion comes with a unified launcher (`orion.bat` or `run.bat`) that handles virtual environment activation and sets up the correct paths automatically.
+Orion comes with a unified launcher (`run.bat`) that handles virtual environment activation and sets up the correct paths automatically.
 
 **Run the standard CLI interface:**
 ```bash
-.\orion.bat cli
+.\run.bat cli
 ```
 
 **Run via Telegram Bot:**
 ```bash
-.\orion.bat telegram
+.\run.bat telegram
 ```
 
 **Run via Slack Bot:**
 ```bash
-.\orion.bat slack
+.\run.bat slack
 ```
 
 ---

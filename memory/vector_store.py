@@ -9,7 +9,7 @@ from typing import Any
 
 import chromadb
 from chromadb.config import Settings
-from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 import config
 from utils.logger import get_logger
@@ -44,13 +44,8 @@ def _get_collection() -> Any:
         settings=settings
     )
 
-    # Use NVIDIA NIM for embeddings to save local memory
-    # We use the OpenAI-compatible endpoint for embeddings
-    emb_fn = embedding_functions.OpenAIEmbeddingFunction(
-        api_key=config.NVIDIA_NIM_API_KEY,
-        api_base=config.NIM_BASE_URL,
-        model_name="nvidia/nv-embedqa-e5-v5" # High-performance embedding model on NIM
-    )
+    # Use local SentenceTransformers for embeddings — no external API needed
+    emb_fn = DefaultEmbeddingFunction()
 
     _collection = _chroma_client.get_or_create_collection(
         name="task_memory",

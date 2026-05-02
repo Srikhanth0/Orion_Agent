@@ -28,7 +28,10 @@ async def start_cli(graph: Any) -> None:
     print(f"{_C_AGENT}---------------------------------------------------------{_C_RESET}\n")
     
     # Use a fixed thread ID for the CLI session
-    thread_config = {"configurable": {"thread_id": "cli_session_01"}}
+    thread_config = {
+        "configurable": {"thread_id": "cli_session_01"},
+        "recursion_limit": 100,
+    }
     
     try:
         while True:

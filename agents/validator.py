@@ -14,30 +14,64 @@ Graceful degradation:
   - If screenshot fails, falls back to tool-result-based validation
 """
 import base64
+import json
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 import config
+from agents.prompts import build_validator_prompt
 from agents.state import AgentState
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Vision validation prompt
-_VALIDATION_PROMPT = """You are a QA validator for a Windows desktop automation agent.
-You will receive a screenshot of the current screen state and a description of the action that was just attempted.
+# ── Text evidence check (Phase 1 — Anti-Hallucination) ───────────────────────
 
-Your job: Determine if the action succeeded based on visual evidence in the screenshot.
+_SUCCESS_SIGNALS = [
+    "successfully", "completed", "sent", "created", "opened", "saved",
+    "launched", "message id:", "event created", "updated", "bytes written",
+    "screenshot saved", "found", "connected", "running:",
+]
+_FAILURE_SIGNALS = [
+    "error:", "failed:", "exception", "access denied", "not found",
+    "permission denied", "does not exist", "cannot find", "timed out",
+    "traceback", "refused", "not_running",
+]
 
-Rules:
-1. Look for visual confirmation that the described action completed (e.g., app opened, page loaded, file created).
-2. If you cannot determine success from the screenshot alone, lean towards YES if the action seems plausible.
-3. Be concise in your reasoning.
 
-Respond in EXACTLY this format:
-RESULT: YES or NO
-REASON: <one sentence explanation>"""
+def _check_text_evidence(tool_results: list[dict]) -> bool | None:
+    """Returns True/False if text result is conclusive, None if ambiguous.
+
+    Called BEFORE vision validation to save expensive API calls.
+    """
+    if not tool_results:
+        return None
+    recent = tool_results[-1]
+    evidence_str = recent.get("result_evidence") or recent.get("result", "")
+    text = evidence_str.lower()
+
+    # JSON blob detection — API results are ALWAYS success if they parse correctly
+    stripped = evidence_str.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        try:
+            parsed = json.loads(stripped[:5000] if len(stripped) > 5000 else stripped)
+            if isinstance(parsed, dict):
+                error_keys = {"error", "error_message", "exception"}
+                if not any(k in parsed for k in error_keys):
+                    logger.info("Text evidence: JSON data response — PASS")
+                    return True
+            elif isinstance(parsed, list) and len(parsed) > 0:
+                return True
+        except (json.JSONDecodeError, ValueError):
+            if len(stripped) > 50 and ":" in stripped:
+                return True
+
+    if any(s in text for s in _SUCCESS_SIGNALS):
+        return True
+    if any(f in text for f in _FAILURE_SIGNALS):
+        return False
+    return None  # Ambiguous — use vision
 
 
 async def validator_node(state: AgentState, mcp_client: Any = None) -> dict:
@@ -70,9 +104,13 @@ async def validator_node(state: AgentState, mcp_client: Any = None) -> dict:
         current_idx + 1, len(checklist), attempts + 1, subtask_desc,
     )
 
-    # Attempt vision-based validation
+    # Attempt validation: text evidence first, then vision
+    skip_vision = state.get("skip_vision", False)
     validation_passed = await _try_vision_validation(
-        subtask_desc, tool_results, mcp_client
+        subtask_desc, tool_results, mcp_client,
+        screen_width=state.get("screen_width", 1920),
+        screen_height=state.get("screen_height", 1080),
+        skip_vision=skip_vision,
     )
 
     if validation_passed:
@@ -135,16 +173,26 @@ async def _try_vision_validation(
     subtask_desc: str,
     tool_results: list[dict],
     mcp_client: Any,
+    screen_width: int = 1920,
+    screen_height: int = 1080,
+    skip_vision: bool = False,
 ) -> bool:
     """
-    Attempt screenshot -> Vision LLM validation.
+    Attempt validation with text evidence first, then screenshot → Vision LLM.
 
     Falls back to tool-result-based validation if vision is unavailable.
-
-    Screenshot strategy:
-      - 'Snapshot' returns actual image content (base64 or binary)
-      - 'Screenshot' returns text metadata only — not useful for vision
     """
+    # Step 0: Try text evidence (fast, no API call)
+    text_verdict = _check_text_evidence(tool_results)
+    if text_verdict is not None:
+        logger.info("Text evidence verdict: %s", "PASS" if text_verdict else "FAIL")
+        return text_verdict
+
+    # Step 0.5: Skip vision for non-GUI tasks (API calls, file ops, email)
+    if skip_vision:
+        logger.info("Validator: skipping vision (non-GUI task) → using fallback")
+        return _fallback_tool_result_validation(tool_results)
+
     # Step 1: Try to take a screenshot via Windows MCP 'Snapshot' tool
     screenshot_b64 = None
     if mcp_client is not None and mcp_client.is_connected("windows"):
@@ -207,7 +255,11 @@ async def _call_vision_llm(subtask_desc: str, screenshot_b64: str) -> bool | Non
 
         # Build the multimodal message with image
         messages = [
-            SystemMessage(content=_VALIDATION_PROMPT),
+            SystemMessage(content=build_validator_prompt(
+                subtask=subtask_desc,
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )),
             HumanMessage(content=[
                 {
                     "type": "text",

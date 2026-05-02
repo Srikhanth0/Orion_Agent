@@ -1,9 +1,8 @@
-"""
-agents/graph.py — LangGraph StateGraph assembly (V2 — Checklist + Validator).
+"""agents/graph.py — LangGraph StateGraph assembly (V3 — Calibrator + Validator).
 
-6-node graph with validator in the execution loop:
-  START → supervisor → planner → executor → validator → executor (loop)
-                                                      → memory → responder → END
+7-node graph with calibrator and validator in the execution loop:
+  START → supervisor → calibrator → planner/executor → validator → executor (loop)
+                                                                → memory → responder → END
 """
 import functools
 from typing import Any
@@ -15,6 +14,7 @@ import config
 from agents.state import AgentState
 from agents.supervisor import supervisor_node
 from agents.planner import planner_node
+from agents.calibrator import calibrator_node
 from agents.executor import executor_node
 from agents.validator import validator_node
 from agents.responder import responder_node
@@ -66,11 +66,18 @@ async def memory_node(state: AgentState) -> dict:
 
 
 def _route_after_supervisor(state: AgentState) -> str:
-    """Route from supervisor to planner, executor, or responder based on intent."""
+    """Route from supervisor to calibrator or responder based on intent."""
     intent = state.get("intent", "simple_task")
     if intent == "chat":
         return "responder"
-    elif intent == "complex_task":
+    # Both simple_task and complex_task go through calibrator first
+    return "calibrator"
+
+
+def _route_after_calibrator(state: AgentState) -> str:
+    """Route from calibrator to planner (complex) or executor (simple)."""
+    intent = state.get("intent", "simple_task")
+    if intent == "complex_task":
         return "planner"
     return "executor"
 
@@ -107,7 +114,8 @@ def build_graph(tools: list[Any] | None = None, mcp_client: Any = None) -> Any:
     Args:
         tools: List of LangChain-compatible tool objects to inject into
                the executor node.
-        mcp_client: The MultiMCPClient instance (for validator screenshots).
+        mcp_client: The MultiMCPClient instance (for validator screenshots
+                    and calibrator screen detection).
 
     Returns:
         A compiled LangGraph runnable (with MemorySaver checkpointer).
@@ -117,12 +125,14 @@ def build_graph(tools: list[Any] | None = None, mcp_client: Any = None) -> Any:
     # Create partials with injected dependencies
     executor_with_tools = functools.partial(executor_node, tools=tools)
     validator_with_mcp = functools.partial(validator_node, mcp_client=mcp_client)
+    calibrator_with_mcp = functools.partial(calibrator_node, mcp_client=mcp_client)
 
     # Build the graph
     graph = StateGraph(AgentState)
 
-    # Add nodes (6 total)
+    # Add nodes (7 total)
     graph.add_node("supervisor", supervisor_node)
+    graph.add_node("calibrator", calibrator_with_mcp)
     graph.add_node("planner", planner_node)
     graph.add_node("executor", executor_with_tools)
     graph.add_node("validator", validator_with_mcp)
@@ -134,11 +144,18 @@ def build_graph(tools: list[Any] | None = None, mcp_client: Any = None) -> Any:
     # START → supervisor
     graph.add_edge(START, "supervisor")
 
-    # supervisor → planner, executor, OR responder (conditional)
+    # supervisor → calibrator OR responder (chat bypasses everything)
     graph.add_conditional_edges(
         "supervisor",
         _route_after_supervisor,
-        {"planner": "planner", "executor": "executor", "responder": "responder"},
+        {"calibrator": "calibrator", "responder": "responder"},
+    )
+
+    # calibrator → planner (complex) OR executor (simple)
+    graph.add_conditional_edges(
+        "calibrator",
+        _route_after_calibrator,
+        {"planner": "planner", "executor": "executor"},
     )
 
     # planner → executor
@@ -169,6 +186,7 @@ def build_graph(tools: list[Any] | None = None, mcp_client: Any = None) -> Any:
     compiled = graph.compile(checkpointer=checkpointer)
 
     logger.info(
-        "Graph compiled: 6 nodes (with validator), %d tools injected", len(tools)
+        "Graph compiled: 7 nodes (with calibrator + validator), %d tools injected",
+        len(tools),
     )
     return compiled

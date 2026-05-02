@@ -1,8 +1,8 @@
-"""
-agents/planner.py — LangGraph planner node.
+"""agents/planner.py — LangGraph planner node (V3 — Physical Decomposition).
 
 Uses the 70B model with structured output to decompose complex user
-requests into a checklist of concrete, atomic subtasks (max 8).
+requests into PHYSICAL, atomic subtasks using the action grammar.
+Auto-validates checklist dependencies (SNAPSHOT before CLICK, etc.).
 """
 from typing import Optional
 
@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 import config
-from agents.prompts import build_planner_prompt
+from agents.prompts import build_task_planner_prompt, build_memory_context_prompt
 from agents.state import AgentState
 from utils.logger import get_logger
 
@@ -18,10 +18,14 @@ logger = get_logger(__name__)
 
 
 class PlanChecklist(BaseModel):
-    """Structured output schema for the planner."""
+    """Structured output schema for the physical planner."""
     subtasks: list[str] = Field(
-        description="Ordered list of atomic action steps (max 8).",
+        description="Ordered list of PHYSICAL atomic action steps (max 8).",
         max_length=8,
+    )
+    domain: Optional[str] = Field(
+        default="mixed",
+        description="Primary domain: os_gui, browser_dom, api, or mixed.",
     )
     reasoning: Optional[str] = Field(
         default=None,
@@ -29,12 +33,44 @@ class PlanChecklist(BaseModel):
     )
 
 
+def _validate_checklist_dependencies(subtasks: list[str]) -> list[str]:
+    """
+    Inject missing prerequisite steps in the checklist.
+
+    Rules enforced:
+      - FIND or CLICK_AT must be preceded by a SNAPSHOT
+      - VERIFY must be the final step of any sequence
+    """
+    validated = []
+    last_snapshot_idx = -1
+
+    for i, step in enumerate(subtasks):
+        step_upper = step.upper()
+
+        # Auto-inject SNAPSHOT before FIND or CLICK_AT if missing
+        if ("FIND " in step_upper or "CLICK_AT" in step_upper):
+            if last_snapshot_idx < len(validated) - 1:
+                validated.append("SNAPSHOT (verify current screen state)")
+                last_snapshot_idx = len(validated) - 1
+
+        if "SNAPSHOT" in step_upper:
+            last_snapshot_idx = len(validated)
+
+        validated.append(step)
+
+    # Ensure VERIFY is the last step
+    if validated and "VERIFY" not in validated[-1].upper():
+        validated.append("VERIFY expected final state is visible on screen")
+
+    return validated
+
+
 async def planner_node(state: AgentState) -> dict:
     """
     Generate a multi-step checklist for a complex task.
 
     Uses with_structured_output() to guarantee a valid PlanChecklist schema
-    from the 70B model. Converts subtask strings into checklist dicts.
+    from the 70B model. Runs physical dependency validation after generation.
 
     Returns:
         {"checklist": [...], "status": "executing", "current_subtask_index": 0}
@@ -42,20 +78,23 @@ async def planner_node(state: AgentState) -> dict:
     llm = config.get_llm()
     task = state.get("task", "")
     memory_context = state.get("memory_context", "")
+    screen_width = state.get("screen_width", 1920)
+    screen_height = state.get("screen_height", 1080)
 
     logger.info("Planner generating checklist for: %.80s...", task)
 
-    # Build the planning prompt with optional memory context
+    # Build the planning prompt with screen dimensions
     planning_messages = [
-        SystemMessage(content=build_planner_prompt()),
+        SystemMessage(content=build_task_planner_prompt(
+            screen_width=screen_width,
+            screen_height=screen_height,
+        )),
     ]
 
-    if memory_context:
-        planning_messages.append(
-            SystemMessage(
-                content=f"Relevant context from past tasks:\n{memory_context}"
-            )
-        )
+    # Add memory context using structured prompt
+    memory_prompt = build_memory_context_prompt(memory_context)
+    if memory_prompt:
+        planning_messages.append(SystemMessage(content=memory_prompt))
 
     planning_messages.append(HumanMessage(content=task))
 
@@ -65,7 +104,12 @@ async def planner_node(state: AgentState) -> dict:
         plan: PlanChecklist = await structured_llm.ainvoke(planning_messages)
 
         subtasks = plan.subtasks[:8]  # Hard cap at 8 steps
-        logger.info("Checklist generated with %d subtasks", len(subtasks))
+
+        # Validate physical dependencies
+        subtasks = _validate_checklist_dependencies(subtasks)
+        subtasks = subtasks[:10]  # Allow up to 10 after injection
+
+        logger.info("Checklist generated with %d physical subtasks", len(subtasks))
         for i, step in enumerate(subtasks):
             logger.info("  Subtask %d: %s", i + 1, step)
 

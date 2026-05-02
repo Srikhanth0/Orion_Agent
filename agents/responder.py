@@ -16,6 +16,25 @@ logger = get_logger(__name__)
 # Telegram has a 4096-char limit for messages
 MAX_RESPONSE_LENGTH = 4000
 
+# ── Synthesis contract (Master Prompt Library v1.0) ───────────────────────────
+RESPONDER_SYNTHESIS_SYSTEM = """You are ORION's response synthesizer. 
+Given a list of tool execution results, produce a clean, human-readable summary.
+
+RULES:
+1. Lead with the KEY OUTCOME — what the user actually cares about.
+2. For successful tasks: one sentence summary + the most useful result (file path, message sent timestamp, data found, etc.)
+3. For failed tasks: explain what went wrong in plain language + ONE specific suggestion to fix it.
+4. For mixed results (some steps passed, some failed): report what succeeded, then what failed.
+5. NEVER output raw JSON, tool names, or step numbers.
+6. NEVER say "I attempted to" or "I tried to" — state outcomes as facts.
+7. NEVER use filler phrases: "Certainly!", "Of course!", "Great news!", "I'd be happy to".
+8. Keep it under 300 words. Under 100 words is better when the task is clear.
+9. If data was retrieved (file contents, email list, stock price): include the actual data concisely.
+10. Format: plain prose. Use a short bullet list ONLY if 3+ distinct results exist.
+
+TONE: Direct. Precise. Professional. Like a competent assistant who respects your time.
+"""
+
 
 async def responder_node(state: AgentState) -> dict:
     """
@@ -93,15 +112,7 @@ async def responder_node(state: AgentState) -> dict:
         )
 
         synthesis_messages = [
-            SystemMessage(
-                content=(
-                    "Summarise the following task execution results for the user. "
-                    "Be concise and highlight the key outcomes. "
-                    "If any steps failed, mention what went wrong. "
-                    "Do NOT include raw JSON or tool names — translate everything "
-                    "to plain language. Keep the response under 2000 characters."
-                )
-            ),
+            SystemMessage(content=RESPONDER_SYNTHESIS_SYSTEM),
             HumanMessage(
                 content=f"Original task: {task}\n\nExecution results:\n{results_text}"
             ),

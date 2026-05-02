@@ -45,5 +45,18 @@ class AgentState(TypedDict):
     # Retry counter — executor increments on failure, caps at 3
     error_count: int
 
-    # The Telegram / Slack user ID for access control and memory isolation
+    # The Telegram / Slack / UI user ID for access control and memory isolation
     user_id: str
+
+    # Screen geometry (set by calibrator_node, consumed by prompts)
+    screen_width: int          # Primary monitor width in pixels
+    screen_height: int         # Primary monitor height in pixels
+    dpi_scale: float           # DPI scale factor (1.0 = 96 DPI)
+    calibrated: bool           # Whether calibrator has run for this task
+
+    # Preferred MCP server for this task domain (set by supervisor)
+    mcp_hint: str              # e.g. "windows", "playwright", "google", "fincept"
+
+    # Speed optimization: skip vision validation for non-GUI tasks
+    skip_vision: bool          # True = skip screenshot validation for API/file tasks
+

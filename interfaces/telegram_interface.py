@@ -54,7 +54,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from langchain_core.messages import HumanMessage
         
         # We use the chat_id as the LangGraph thread_id for state persistence
-        thread_config = {"configurable": {"thread_id": str(chat_id)}}
+        thread_config = {
+            "configurable": {"thread_id": str(chat_id)},
+            "recursion_limit": 100,
+        }
         
         # Prepare the state input
         initial_state = {

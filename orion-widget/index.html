@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=420, height=600">
+  <title>ORION</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ═══ Floating Bubble ═══ -->
+  <div id="orion-bubble" onclick="togglePanel()">
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+      <line x1="8" y1="15" x2="14" y2="14" stroke="rgba(255,255,255,0.45)" stroke-width="0.8"/>
+      <line x1="14" y1="14" x2="20" y2="13" stroke="rgba(255,255,255,0.45)" stroke-width="0.8"/>
+      <line x1="6" y1="8" x2="8" y2="15" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+      <line x1="22" y1="7" x2="20" y2="13" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+      <line x1="8" y1="15" x2="10" y2="22" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+      <line x1="20" y1="13" x2="22" y2="21" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+      <circle cx="6"  cy="8"  r="2"   fill="rgba(255,255,255,0.9)"/>
+      <circle cx="22" cy="7"  r="1.6" fill="rgba(255,255,255,0.75)"/>
+      <circle cx="8"  cy="15" r="1.4" fill="rgba(255,255,255,0.95)"/>
+      <circle cx="14" cy="14" r="1.6" fill="rgba(255,255,255,0.95)"/>
+      <circle cx="20" cy="13" r="1.4" fill="rgba(255,255,255,0.95)"/>
+      <circle cx="10" cy="22" r="1.6" fill="rgba(255,255,255,0.75)"/>
+      <circle cx="22" cy="21" r="2"   fill="rgba(255,255,255,0.90)"/>
+    </svg>
+    <div class="badge" id="badge"></div>
+  </div>
+
+  <!-- ═══ Main Panel ═══ -->
+  <div id="orion-panel">
+
+    <!-- Header -->
+    <div class="panel-header">
+      <div style="display:flex; align-items:center;">
+        <span class="title">ORION</span>
+        <span class="status-dot" id="status-dot"></span>
+      </div>
+      <div class="header-btns">
+        <button onclick="togglePanel()" title="Minimize">─</button>
+      </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')">Chat</button>
+      <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">Logs</button>
+      <button class="tab-btn" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">Settings</button>
+    </div>
+
+    <!-- ═══ Chat Tab ═══ -->
+    <div class="tab-content active" id="tab-chat">
+      <div class="reconnect-banner" id="reconnect-banner">
+        <span>ORION is offline</span>
+        <button onclick="connectWS()">Reconnect</button>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg system">ORION Widget v1.0 — Ctrl+Space to toggle</div>
+      </div>
+      <div class="typing-indicator" id="typing-indicator">
+        <span>.</span><span>.</span><span>.</span> thinking
+      </div>
+      <div class="chat-input-area">
+        <textarea id="chat-input" placeholder="Ask ORION…" onkeydown="handleChatKey(event)" oninput="autoResize(this)" rows="1"></textarea>
+        <button class="send-btn" onclick="sendMessage()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M1 6.5L12 1L6.5 12L5.5 7.5L1 6.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ Logs Tab ═══ -->
+    <div class="tab-content" id="tab-logs">
+      <div class="log-toolbar">
+        <button class="log-chip active" data-level="INFO" onclick="toggleLogFilter('INFO')">INFO</button>
+        <button class="log-chip active" data-level="WARN" onclick="toggleLogFilter('WARN')">WARN</button>
+        <button class="log-chip active" data-level="ERROR" onclick="toggleLogFilter('ERROR')">ERROR</button>
+      </div>
+      <div id="log-output"></div>
+    </div>
+
+    <!-- ═══ Dashboard Tab ═══ -->
+    <div class="tab-content" id="tab-dashboard">
+      <div class="dash-content">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-tasks">0</div>
+            <div class="stat-label">Tasks Run</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-success">0%</div>
+            <div class="stat-label">Success Rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-duration">—</div>
+            <div class="stat-label">Avg Duration</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-uptime">0s</div>
+            <div class="stat-label">Uptime</div>
+          </div>
+        </div>
+
+        <div class="mcp-section-title">MCP Servers</div>
+        <div id="mcp-servers">
+          <div class="mcp-row">
+            <div class="mcp-dot offline"></div>
+            <span class="mcp-name">waiting for data...</span>
+            <span class="mcp-status-pill">IDLE</span>
+          </div>
+        </div>
+
+        <div class="activity-section">
+          <div class="mcp-section-title">Recent Activity</div>
+          <div id="recent-activity">
+            <div class="activity-row">
+              <span class="activity-task" style="color:var(--text-dim)">No tasks yet</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Settings Tab ═══ -->
+    <div class="tab-content" id="tab-settings">
+      <div class="settings-content">
+
+        <!-- Model -->
+        <div class="settings-group">
+          <div class="settings-group-title">Model</div>
+          <div class="setting-row">
+            <span class="setting-label">Reasoning</span>
+            <select class="setting-select" id="setting-model" onchange="saveSetting('model', this.value)">
+              <option value="nvidia/llama-3.1-nemotron-70b-instruct">Nemotron 70B</option>
+              <option value="meta/llama-3.1-8b-instruct">Llama 3.1 8B</option>
+              <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Nemotron Ultra 253B</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Vision</span>
+            <select class="setting-select" id="setting-vision-model" onchange="saveSetting('vision_model', this.value)">
+              <option value="google/gemma-4-31b-it:free">Gemma 4 31B</option>
+              <option value="google/gemma-3-27b-it:free">Gemma 3 27B</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Temperature</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="range" class="slider-input" id="setting-temperature" min="0" max="1" step="0.05" value="0.1" oninput="this.nextElementSibling.textContent=this.value; saveSetting('temperature', parseFloat(this.value))">
+              <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); width:24px;">0.1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Behaviour -->
+        <div class="settings-group">
+          <div class="settings-group-title">Behaviour</div>
+          <div class="setting-row">
+            <span class="setting-label">Vision Validation</span>
+            <input type="checkbox" class="toggle" id="setting-vision-validation" checked onchange="saveSetting('vision_validation', this.checked)">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Auto-Retry</span>
+            <input type="checkbox" class="toggle" id="setting-auto-retry" checked onchange="saveSetting('auto_retry', this.checked)">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">ChromaDB Memory</span>
+            <input type="checkbox" class="toggle" id="setting-memory" checked onchange="saveSetting('chromadb_memory', this.checked)">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Max Retries</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="range" class="slider-input" id="setting-max-retries" min="1" max="5" step="1" value="3" oninput="this.nextElementSibling.textContent=this.value; saveSetting('max_retries', parseInt(this.value))">
+              <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); width:14px;">3</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interfaces -->
+        <div class="settings-group">
+          <div class="settings-group-title">Interfaces</div>
+          <div class="setting-row">
+            <span class="setting-label">Telegram Bot</span>
+            <input type="checkbox" class="toggle" id="setting-telegram" onchange="saveSetting('telegram_enabled', this.checked)">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Slack Bot</span>
+            <input type="checkbox" class="toggle" id="setting-slack" onchange="saveSetting('slack_enabled', this.checked)">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Log to File</span>
+            <input type="checkbox" class="toggle" id="setting-log-file" checked onchange="saveSetting('log_to_file', this.checked)">
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="settings-group">
+          <div class="settings-group-title">Danger Zone</div>
+          <div class="danger-zone">
+            <button class="danger-btn" onclick="confirmDanger('clear_memory')">Clear Memory DB</button>
+            <button class="danger-btn" onclick="confirmDanger('reset_settings')">Reset All Settings</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- end panel -->
+
+  <script src="renderer.js"></script>
+</body>
+</html>

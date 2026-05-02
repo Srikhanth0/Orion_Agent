@@ -63,6 +63,19 @@ async def supervisor_node(state: AgentState) -> dict:
 
         result = json.loads(content)
         intent = result.get("intent", "simple_task")
+        domain = result.get("domain", "mixed")
+
+        # Map domain hint to preferred MCP server
+        _DOMAIN_TO_MCP = {
+            "os_gui": "windows",
+            "browser_dom": "playwright",
+            "google": "google",
+            "financial": "fincept",
+            "filesystem": "windows",
+            "mixed": "windows",
+            "none": "",
+        }
+        mcp_hint = _DOMAIN_TO_MCP.get(domain, "windows")
 
         # Normalize legacy classification field
         if "classification" in result and "intent" not in result:
@@ -79,6 +92,7 @@ async def supervisor_node(state: AgentState) -> dict:
             "Supervisor classification failed (%s), defaulting to 'simple_task'", exc
         )
         intent = "simple_task"
+        mcp_hint = "windows"
 
     # ── Route based on intent ──────────────────────────────────────────────
 
@@ -92,6 +106,7 @@ async def supervisor_node(state: AgentState) -> dict:
             "error_count": 0,
             "current_subtask_index": 0,
             "tool_results": [],
+            "mcp_hint": mcp_hint,
         }
 
     elif intent == "complex_task":
@@ -104,6 +119,7 @@ async def supervisor_node(state: AgentState) -> dict:
             "current_subtask_index": 0,
             "tool_results": [],
             "checklist": [],
+            "mcp_hint": mcp_hint,
         }
 
     else:  # simple_task
@@ -118,4 +134,5 @@ async def supervisor_node(state: AgentState) -> dict:
             "error_count": 0,
             "current_subtask_index": 0,
             "tool_results": [],
+            "mcp_hint": mcp_hint,
         }

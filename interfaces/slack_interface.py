@@ -60,7 +60,10 @@ async def process_slack_event(client: SocketModeClient, req: SocketModeRequest) 
                 
                 # Use channel+thread as the LangGraph thread_id
                 graph_thread_id = f"slack_{channel}_{thread_ts}"
-                thread_config = {"configurable": {"thread_id": graph_thread_id}}
+                thread_config = {
+                    "configurable": {"thread_id": graph_thread_id},
+                    "recursion_limit": 100,
+                }
                 
                 # Input state
                 initial_state = {

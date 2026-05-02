@@ -244,7 +244,13 @@ class MultiMCPClient:
             _name = tool_name
 
             async def _tool_func(_server=_server, _name=_name, **kwargs) -> str:
-                cleaned = {k: v for k, v in kwargs.items() if v is not None}
+                cleaned = {}
+                for k, v in kwargs.items():
+                    if v is None:
+                        continue
+                    if isinstance(v, str) and v.strip().lower() in ("null", "none", "undefined", ""):
+                        continue
+                    cleaned[k] = v
                 return await multi_mcp_client.call_tool(_server, _name, cleaned)
 
             st = StructuredTool.from_function(

@@ -1,0 +1,14 @@
+{
+  "name": "orion-widget",
+  "version": "1.0.0",
+  "description": "ORION Desktop Overlay Widget — floating chat + log viewer + dashboard",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Srikhanth",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^41.5.0"
+  }
+}

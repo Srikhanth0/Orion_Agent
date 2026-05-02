@@ -1,13 +1,34 @@
+# Python & Environments
 .env
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Dependencies & Third-party
 qt/
+FinceptTerminal/
+Enhancement/
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+
+# Project Specifics
+scratch/
+SKILL*.md
+docs/SKILL*.md
+
+# Logs, Binaries & Media
 *.log
+*.png
+test.*
+*.exe
+*.obj
+*.c
+
+# Credentials & Secrets
 google_credentials.json
 token.json
-scratch/
-test.exe
-test.obj
-*.png
-FinceptTerminal/

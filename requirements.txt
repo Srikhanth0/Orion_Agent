@@ -18,3 +18,4 @@ aioconsole==0.8.2
 fastmcp==0.1.0
 yfinance==0.2.43
 pandas==2.2.3
+aiofiles==23.2.1

@@ -29,6 +29,8 @@ NIM_FAST_MODEL: str = os.getenv(
 )
 AGENT_TEMPERATURE: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
 AGENT_MAX_TOKENS: int = int(os.getenv("AGENT_MAX_TOKENS", "4096"))
+EXECUTOR_MAX_TOKENS: int = int(os.getenv("EXECUTOR_MAX_TOKENS", "1024"))
+VALIDATOR_SKIP_NON_GUI: bool = os.getenv("VALIDATOR_SKIP_NON_GUI", "true").lower() == "true"
 
 # ── LLM (OpenRouter — Vision) ───────────────────────────────────────────────
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -74,7 +76,7 @@ GOOGLE_SCOPES = [
 # ── MULTI-MCP ─────────────────────────────────────────────────────────────────
 WINDOWS_MCP_COMMAND: str = os.getenv("WINDOWS_MCP_COMMAND", "uvx windows-mcp")
 PLAYWRIGHT_MCP_COMMAND: str = os.getenv(
-    "PLAYWRIGHT_MCP_COMMAND", "npx -y @modelcontextprotocol/server-playwright"
+    "PLAYWRIGHT_MCP_COMMAND", "npx -y @modelcontextprotocol/server-puppeteer"
 )
 _default_fincept_mcp = f'"{_PROJECT_ROOT}/.venv/Scripts/python.exe" "{_PROJECT_ROOT}/run_fincept_mcp.py"'
 FINCEPT_MCP_COMMAND: str = os.getenv("FINCEPT_MCP_COMMAND", _default_fincept_mcp)
@@ -97,6 +99,12 @@ SQLITE_PATH: str = os.getenv(
 AGENT_MAX_ITERATIONS: int = int(os.getenv("AGENT_MAX_ITERATIONS", "15"))
 AGENT_MAX_RETRIES: int = int(os.getenv("AGENT_MAX_RETRIES", "3"))
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+# ── UI Server ─────────────────────────────────────────────────────────────────
+UI_ENABLED: bool = os.getenv("UI_ENABLED", "true").lower() == "true"
+UI_PORT: int = int(os.getenv("UI_PORT", "8765"))
+UI_AUTO_OPEN: bool = os.getenv("UI_AUTO_OPEN", "false").lower() == "true"
+LOG_FILE_PATH: str = os.getenv("LOG_FILE_PATH", str(_PROJECT_ROOT / "logs" / "orion.log"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -148,6 +156,19 @@ def get_llm():
         openai_api_base=NIM_BASE_URL,
         temperature=AGENT_TEMPERATURE,
         max_tokens=AGENT_MAX_TOKENS,
+    )
+
+
+def get_executor_llm():
+    """Return LLM configured for fast executor calls (low max_tokens)."""
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(
+        model=NIM_MODEL,
+        openai_api_key=NVIDIA_NIM_API_KEY,
+        openai_api_base=NIM_BASE_URL,
+        temperature=AGENT_TEMPERATURE,
+        max_tokens=EXECUTOR_MAX_TOKENS,  # 1024 vs 4096 — much faster
     )
 
 

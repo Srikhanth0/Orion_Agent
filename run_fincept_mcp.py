@@ -1,5 +1,6 @@
 import sys
 import os
+import mcp
 
 # Add the script directory to path so it can import its dependencies if needed
 script_dir = os.path.abspath(os.path.join(
